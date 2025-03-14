@@ -21,14 +21,18 @@ initlock(struct spinlock *lk, char *name)
 void
 acquire(struct spinlock *lk)
 {
-  push_off(); // disable interrupts to avoid deadlock.
+  push_off(); // disable interrupts to avoid deadlock. 
   if(holding(lk))
     panic("acquire");
 
   // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
   //   a5 = 1
   //   s1 = &lk->locked
-  //   amoswap.w.aq a5, a5, (s1)
+  //   amoswap.w.aq a5, a5, (s1)  /*  将 a5 的值（1）写入 s1 指向的内存地址，并返回旧值到 a5 */
+
+  /* __sync_lock_test_and_set 是一个原子操作函数，用于将某个内存位置的值设置为新值，
+  并返回该内存位置的旧值。*/
+  
   while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
     ;
 
@@ -68,7 +72,7 @@ release(struct spinlock *lk)
   //   amoswap.w zero, zero, (s1)
   __sync_lock_release(&lk->locked);
 
-  pop_off();
+  pop_off(); /* 使能中断 */
 }
 
 // Check whether this cpu is holding the lock.
@@ -88,12 +92,12 @@ holding(struct spinlock *lk)
 void
 push_off(void)
 {
-  int old = intr_get();
+  int old = intr_get(); /* 获取之前的中断状态 */
 
-  intr_off();
-  if(mycpu()->noff == 0)
+  intr_off(); /* 关闭中断 */
+  if(mycpu()->noff == 0)    /* noff 为中断计数值 */
     mycpu()->intena = old;
-  mycpu()->noff += 1;
+  mycpu()->noff += 1; 
 }
 
 void
