@@ -8,13 +8,14 @@
 #include "defs.h"
 
 // Fetch the uint64 at addr from the current process.
+/* 从用户地址空间获取 uint64 类型数据 */
 int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
   if(addr >= p->sz || addr+sizeof(uint64) > p->sz) // both tests needed, in case of overflow
     return -1;
-  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0) /* 从用户地址 addr 复制数据到 ip */
     return -1;
   return 0;
 }
@@ -30,6 +31,7 @@ fetchstr(uint64 addr, char *buf, int max)
   return strlen(buf);
 }
 
+/* 获取 n 号 系统调用参数。直接存入寄存器 */
 static uint64
 argraw(int n)
 {
@@ -53,6 +55,7 @@ argraw(int n)
 }
 
 // Fetch the nth 32-bit system call argument.
+/* 读取整数参数 */
 void
 argint(int n, int *ip)
 {
@@ -62,6 +65,8 @@ argint(int n, int *ip)
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
+
+/* 读取地址指针参数 */
 void
 argaddr(int n, uint64 *ip)
 {
@@ -71,6 +76,8 @@ argaddr(int n, uint64 *ip)
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.
 // Returns string length if OK (including nul), -1 if error.
+
+/* 读取字符串参数 */
 int
 argstr(int n, char *buf, int max)
 {

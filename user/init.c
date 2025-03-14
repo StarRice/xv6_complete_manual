@@ -16,22 +16,25 @@ main(void)
 {
   int pid, wpid;
 
-  if(open("console", O_RDWR) < 0){
-    mknod("console", CONSOLE, 0);
+  if(open("console", O_RDWR) < 0){  /* 打开字符设备 */
+    mknod("console", CONSOLE, 0);   /*  如果打开失败，这创建（mknod）一个字符设备/dev/console */
     open("console", O_RDWR);
   }
-  dup(0);  // stdout
+
+  /** 标准输入和标准错误就都会输出到 console */
+  dup(0);  // stdout   /* (duplicate file descriptor) 复制文件描述符，让两个文件描述符指向同一文件 */
   dup(0);  // stderr
 
-  for(;;){
+  for(;;){ /* 准备启动 sh */
     printf("init: starting sh\n");
     pid = fork();
     if(pid < 0){
       printf("init: fork failed\n");
       exit(1);
     }
-    if(pid == 0){
+    if(pid == 0){ /* 子进程 */
       exec("sh", argv);
+      /* 如果成功，子进程执行sh，不会返回 */
       printf("init: exec sh failed\n");
       exit(1);
     }

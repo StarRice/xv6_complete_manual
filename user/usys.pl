@@ -10,7 +10,7 @@ sub entry {
     my $name = shift;
     print ".global $name\n";
     print "${name}:\n";
-    print " li a7, SYS_${name}\n";
+    print " li a7, SYS_${name}\n";        # 将系统调用号加载到 a7 寄存器，这是 RISC-V 约定的系统调用接口，参数存放在其他的寄存器中，这里不需要关注
     print " ecall\n";
     print " ret\n";
 }
