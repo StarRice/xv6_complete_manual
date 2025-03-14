@@ -27,7 +27,7 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  freerange(end, (void*)PHYSTOP);  /* 将整个物理地址以页为单位，分配一个空闲链表 */
 }
 
 void
@@ -52,12 +52,13 @@ kfree(void *pa)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
+  memset(pa, 1, PGSIZE); /* 将想释放的物理地址，全部设置为1 */
 
-  r = (struct run*)pa;
+  /* 将释放完之后的空闲页添加到头节点 */
+  r = (struct run*)pa;   
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
+  r->next = kmem.freelist;  
   kmem.freelist = r;
   release(&kmem.lock);
 }
@@ -67,7 +68,8 @@ kfree(void *pa)
 // Returns 0 if the memory cannot be allocated.
 void *
 kalloc(void)
-{
+{ 
+  /*从空闲页表中按顺序找到一个空闲页，将其填充，并返回这个 page 的首地址 */
   struct run *r;
 
   acquire(&kmem.lock);
