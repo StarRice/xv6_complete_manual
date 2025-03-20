@@ -38,8 +38,8 @@ proc_mapstacks(pagetable_t kpgtbl)
     char *pa = kalloc();
     if(pa == 0)
       panic("kalloc");
-    uint64 va = KSTACK((int) (p - proc));
-    kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+    uint64 va = KSTACK((int) (p - proc)); /* 计算该进程的内核栈的虚拟地址 */
+    kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W); /* 建立映射 */
   }
 }
 
@@ -53,8 +53,8 @@ procinit(void)
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
+      p->state = UNUSED;                    /* 标记该进程为空闲状态 */
+      p->kstack = KSTACK((int) (p - proc)); /* 计算并存储内核的栈地址 */
   }
 }
 
@@ -89,6 +89,7 @@ myproc(void)
   return p;
 }
 
+/* pid 从 1 开始增长 */
 int
 allocpid()
 {
@@ -111,6 +112,7 @@ allocproc(void)
 {
   struct proc *p;
 
+  /* 遍历进程表，查看是否有空闲状态的 */
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -119,13 +121,14 @@ allocproc(void)
       release(&p->lock);
     }
   }
-  return 0;
+  return 0; /* 没有就返回 0 */
 
+/* 找到了先给这个进程编一个号 */
 found:
   p->pid = allocpid();
-  p->state = USED;
+  p->state = USED; /* 标记该进程已分配，但是还没有运行 */
 
-  // Allocate a trapframe page.
+  // Allocate a trapframe page. 这个 page 只有一页
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);
@@ -143,8 +146,9 @@ found:
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
+  /* ra = forkret 确保进程第一次调度时，执行 forkret()，最终跳回用户态。*/
+  p->context.ra = (uint64)forkret; /* forkret 是一个特殊的内核函数，负责执行新进程的 第一次返回*/
+  p->context.sp = p->kstack + PGSIZE; /* 栈的可用地址是 4kb */
 
   return p;
 }
@@ -235,19 +239,19 @@ userinit(void)
   struct proc *p;
 
   p = allocproc();
-  initproc = p;
+  initproc = p; /* initproc 作为 xv6 的第一个用户进程，全局变量 initproc 用于标记它。*/
   
   // allocate one user page and copy initcode's instructions
   // and data into it.
-  uvmfirst(p->pagetable, initcode, sizeof(initcode));
+  uvmfirst(p->pagetable, initcode, sizeof(initcode)); /* 给 p->pagetable 申请一个用户页，并将 initcode[] 复制到该页。*/
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
 
-  safestrcpy(p->name, "initcode", sizeof(p->name));
-  p->cwd = namei("/");
+  safestrcpy(p->name, "initcode", sizeof(p->name)); /* 进程名称设为 "initcode" */
+  p->cwd = namei("/"); /* 当前工作目录 cwd 设为 / */
 
   p->state = RUNNABLE;
 
@@ -327,6 +331,10 @@ fork(void)
 
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
+
+/* 负责 重新指定 p 进程的子进程的父进程，
+   以确保 initproc（PID=1 的 init 进程）能够接管这些子进程，
+   以便它们的资源能够被正确回收。*/
 void
 reparent(struct proc *p)
 {
@@ -441,6 +449,13 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+/* 
+* xv6 操作系统中的调度器，负责选择并运行一个就绪状态（RUNNABLE）的进程 
+* 每个 CPU 都会在初始化后调用 scheduler()，该函数会进入一个 无限循环，
+* 不断选择一个进程来执行，直到当前 CPU 被中断或没有进程可运行。
+*/
+
 void
 scheduler(void)
 {
@@ -455,7 +470,7 @@ scheduler(void)
     intr_on();
 
     int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
+    for(p = proc; p < &proc[NPROC]; p++) { /* 没有什么调度算法，就是简单的按照 pid 的顺序来调度 */
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
@@ -463,7 +478,7 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
+        swtch(&c->context, &p->context); /* 保存当前 CPU 的上下文 c->context，并加载进程 p 的上下文 p->context。*/
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
@@ -474,7 +489,9 @@ scheduler(void)
     }
     if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
+      /* 如果没有找到 RUNNABLE 状态的进程（即所有进程都在等待），则跳出进程调度循环，进入空闲状态。*/
       intr_on();
+      /* 执行一个等待中断的汇编指令。此时 CPU 进入 空闲状态，直到有新的中断发生（如定时器中断或者外部事件），唤醒 CPU 继续调度进程。*/
       asm volatile("wfi");
     }
   }

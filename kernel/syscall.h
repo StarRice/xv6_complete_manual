@@ -1,4 +1,5 @@
-// System call numbers
+/* 系统调用的调用号 保存保存到 a7 */
+// System call numbers 
 #define SYS_fork    1
 #define SYS_exit    2
 #define SYS_wait    3

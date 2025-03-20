@@ -1,6 +1,6 @@
 struct stat;
 
-// system calls
+// system calls /* 系统调用在这里声明 */
 int fork(void);
 int exit(int) __attribute__((noreturn));
 int wait(int*);

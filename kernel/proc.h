@@ -1,9 +1,10 @@
 // Saved registers for kernel context switches.
-struct context {
+struct context { /* 上下文结构 */
   uint64 ra;
   uint64 sp;
 
-  // callee-saved
+ 
+  // callee-saved 
   uint64 s0;
   uint64 s1;
   uint64 s2;
@@ -41,11 +42,14 @@ extern struct cpu cpus[NCPU];
 // the trapframe includes callee-saved user registers like s0-s11 because the
 // return-to-user path via usertrapret() doesn't return through
 // the entire kernel call stack.
-struct trapframe {
+
+/* 用户态进程发生异常（陷阱）时，CPU 会自动保存用户态寄存器到 trapframe，
+  然后进入内核执行 usertrap() 处理异常。*/
+struct trapframe { /* 保存触发陷阱时的上下文，和处理这次陷阱的代码的地址 */
   /*   0 */ uint64 kernel_satp;   // kernel page table
   /*   8 */ uint64 kernel_sp;     // top of process's kernel stack
   /*  16 */ uint64 kernel_trap;   // usertrap()
-  /*  24 */ uint64 epc;           // saved user program counter
+  /*  24 */ uint64 epc;           // saved user program counter 存储用户程序的 PC，当异常处理完成后，用户进程将从 epc 继续执行。 
   /*  32 */ uint64 kernel_hartid; // saved kernel tp
   /*  40 */ uint64 ra;
   /*  48 */ uint64 sp;
@@ -79,7 +83,14 @@ struct trapframe {
   /* 272 */ uint64 t5;
   /* 280 */ uint64 t6;
 };
-
+/*
+  UNUSED：未分配的进程槽位
+  USED：已分配但未运行
+  SLEEPING：进程睡眠（等待某个事件）
+  RUNNABLE：进程可以运行，但等待 CPU 调度
+  RUNNING：进程正在运行
+  ZOMBIE：进程已退出，但父进程未回收它
+*/
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -88,9 +99,9 @@ struct proc {
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state
-  void *chan;                  // If non-zero, sleeping on chan
+  void *chan;                  // If non-zero, sleeping on chan 睡眠等待的资源
   int killed;                  // If non-zero, have been killed
-  int xstate;                  // Exit status to be returned to parent's wait
+  int xstate;                  // 退出状态 Exit status to be returned to parent's wait
   int pid;                     // Process ID
 
   // wait_lock must be held when using this:
@@ -98,11 +109,11 @@ struct proc {
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
+  uint64 sz;                   // Size of process memory (bytes) 进程的用户空间大小
   pagetable_t pagetable;       // User page table
   struct trapframe *trapframe; // data page for trampoline.S
   struct context context;      // swtch() here to run process
-  struct file *ofile[NOFILE];  // Open files
+  struct file *ofile[NOFILE];  // Open files 打开文件
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
